@@ -355,6 +355,7 @@ class CSTN(AbstractTrafficStateModel):
 
     def calculate_loss(self, batch):
         y_true = batch['y']
+        # print('y_true', y_true.shape)
         y_predicted = self.predict(batch)
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
         y_predicted = self._scaler.inverse_transform(y_predicted[..., :self.output_dim])
@@ -370,6 +371,7 @@ class CSTN(AbstractTrafficStateModel):
         y = batch['y']
         y_preds = []
         x_ = x.clone()
+        # win = 12
         for i in range(self.output_window):
             batch_tmp = {'X': x_, 'W': w[:, i:(i + self.input_window), ...]}
             y_ = self.forward(batch_tmp)  # (batch_size, 1, len_row, len_column, output_dim)

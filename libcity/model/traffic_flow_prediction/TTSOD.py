@@ -37,6 +37,7 @@ class PositionalEncoding(nn.Module):
 
     def forward(self, x):
         x = x + self.pe[:x.size(0), :]
+        # x = x + self.pe[:x.size(3), :]
         return self.dropout(x)
 
 
@@ -70,8 +71,8 @@ class TrafficTransformer(nn.Module):
 
     def forward(self, input, mask):
         x = input.permute(1, 0, 2)
-        x = self.pos(x)
-        x = self.lpos(x)
+        # x = self.pos(x)
+        # x = self.lpos(x)
         x = self.trans(x, x, tgt_mask=mask)
         return x.permute(1, 0, 2)
 
@@ -97,7 +98,7 @@ class StandardScaler():
         return (data * self.std) + self.mean
 
 
-class TTS(AbstractTrafficStateModel):
+class TTSOD(AbstractTrafficStateModel):
     def __init__(self, config, data_feature):
         super().__init__(config, data_feature)
         self.device = config.get('device', torch.device('cpu'))
@@ -166,15 +167,23 @@ class TTS(AbstractTrafficStateModel):
 
     def forward(self, batch):
         x = batch['X']
+        b_s = x.shape[0]
         # print("====",x.shape) [16, 12, 207, 1]
         # #打印x的第一个batch的207个传感器画出来
-        # print("x shape",x.shape)
+
         x = x.transpose(1, 3)
+        # print("x shape 1",x.shape) #x shape 1 torch.Size([16, 5, 15, 12, 15, 5, 1])
+        # [32, 5, 15, 12, 15, 5, 1]转换为[32, 1, 75, 75,12]
+        x = x.reshape(b_s, 1, 75*75, 12)
+        # print("x shape 2",x.shape)
         x = self.start_conv(x)
         x = self.start_embedding(x)[..., -1]
         x = x.transpose(1, 2)
-        x = self.network(x, self.mask)
+        # x = self.network(x, self.mask)
+        x = self.network(x,torch.ones((5625, 5625)).to(x.device))
+
         x = self.end_conv(x)
+        # print("x shape 3",x.shape)
         return x.transpose(1, 2).unsqueeze(-1)
 
     def predict(self, batch):
@@ -185,30 +194,11 @@ class TTS(AbstractTrafficStateModel):
 
     def calculate_loss(self, batch):
         y_true = batch['y']
-        # y_true = y_true.transpose(1, 3)
+        y_true = y_true.reshape(y_true.shape[0],  12, 5625, 1)
+        # print("y_true shape",y_true.shape)
         y_predicted = self.predict(batch)
-        # print("===================================")
+        # print("y_predicted shape",y_predicted.shape)
 
-        # print("y_true", y_true[0, :4, 0])
-        # print("y_predicted", y_predicted[0, :, 0])
-        # print("===================================")
-
-
-        # y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
-
-
-
-        # y_true = torch.unsqueeze(y_true, dim=1)
-        # print("y_predicted_before", y_predicted[0, :, 0])
-
-
-        # print("scaler", self._scaler)
-        #
-        # print("y_true", y_true.shape)
-        # print("y_predicted", y_predicted.shape)
-        #
-        # print("y_true", y_true[0, :, 0])
-        # print("y_predicted", y_predicted[0, :, 0])
 
         def masked_mae(preds, labels, null_val=np.nan):
             if np.isnan(null_val):
@@ -259,3 +249,4 @@ if __name__ == '__main__':
     # Calculate the loss
     loss = masked_mse_torch(y_predicted, y_true, null_val=null_val)
     print("Loss:", loss.item())
+

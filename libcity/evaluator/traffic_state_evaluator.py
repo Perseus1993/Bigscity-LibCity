@@ -44,7 +44,7 @@ class TrafficStateEvaluator(AbstractEvaluator):
         y_true = batch['y_true']  # tensor
         y_pred = batch['y_pred']  # tensor
         if y_true.shape != y_pred.shape:
-            raise ValueError("batch['y_true'].shape is not equal to batch['y_pred'].shape")
+            raise ValueError("batch['y_true'].shape is not equal to batch['y_pred'].shape", y_true.shape, y_pred.shape)
         self.len_timeslots = y_true.shape[1]
         for i in range(1, self.len_timeslots+1):
             for metric in self.metrics:

@@ -73,7 +73,7 @@ class CSTNDataset(TrafficStateGridOdDataset):
 
         # eval
         x_eval, w_eval, y_eval = X[num_train: num_train + num_eval], \
-                                 W[num_train: num_train + num_eval], y[num_train: num_train + num_eval]
+            W[num_train: num_train + num_eval], y[num_train: num_train + num_eval]
         # test
         x_test, w_test, y_test = X[-num_test:], W[-num_test:], y[-num_test:]
 
@@ -89,7 +89,7 @@ class CSTNDataset(TrafficStateGridOdDataset):
         cat_data = np.load(self.cache_file_name)
         x_train, w_train, y_train, x_eval, w_eval, y_eval, x_test, w_test, y_test = \
             cat_data['x_train'], cat_data['w_train'], cat_data['y_train'], cat_data['x_eval'], cat_data['w_eval'], \
-            cat_data['y_eval'], cat_data['x_test'], cat_data['w_test'], cat_data['y_test']
+                cat_data['y_eval'], cat_data['x_test'], cat_data['w_test'], cat_data['y_test']
 
         self._logger.info(
             "train\tX: {}, W: {}, y: {}".format(str(x_train.shape), str(w_train.shape), str(y_train.shape)))
@@ -142,10 +142,14 @@ class CSTNDataset(TrafficStateGridOdDataset):
         x_test[..., :self.output_dim] = self.scaler.transform(x_test[..., :self.output_dim])
         w_test[..., :self.output_dim] = self.scaler.transform(w_test[..., :self.output_dim])
         y_test[..., :self.output_dim] = self.scaler.transform(y_test[..., :self.output_dim])
-
+        print("x_train shape:", x_train.shape)
+        print("w_train shape:", w_train.shape)
+        print("y_train shape:", y_train.shape)
         train_data = list(zip(x_train, w_train, y_train))
         eval_data = list(zip(x_eval, w_eval, y_eval))
         test_data = list(zip(x_test, w_test, y_test))
+
+        print("train_data length:", len(train_data))
 
         # 转Dataloader
         self.train_dataloader, self.eval_dataloader, self.test_dataloader = \
