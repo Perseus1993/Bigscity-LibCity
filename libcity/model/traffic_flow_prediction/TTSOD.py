@@ -190,11 +190,12 @@ class TTSOD(AbstractTrafficStateModel):
         y_predicted = self.forward(batch)
         # scaler = StandardScaler(mean=batch['X'][..., 0].mean(), std=batch['X'][..., 0].std())
         # y_predicted = scaler.inverse_transform(y_predicted)
+        y_predicted = y_predicted.reshape(y_predicted.shape[0],  12,15, 5, 15, 5, 1)
         return y_predicted
 
     def calculate_loss(self, batch):
         y_true = batch['y']
-        y_true = y_true.reshape(y_true.shape[0],  12, 5625, 1)
+        # y_true = y_true.reshape(y_true.shape[0],  12, 5625, 1)
         # print("y_true shape",y_true.shape)
         y_predicted = self.predict(batch)
         # print("y_predicted shape",y_predicted.shape)
@@ -206,7 +207,7 @@ class TTSOD(AbstractTrafficStateModel):
             else:
                 mask = (labels != null_val)
             mask = mask.float()
-            mask /= torch.mean((mask))
+            mask /= torch.mean(mask)
             mask = torch.where(torch.isnan(mask), torch.zeros_like(mask), mask)
             loss = torch.abs(preds - labels)
             loss = loss * mask

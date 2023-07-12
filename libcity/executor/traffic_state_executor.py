@@ -5,6 +5,8 @@ import torch
 from ray import tune
 from logging import getLogger
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+
 from libcity.executor.abstract_executor import AbstractExecutor
 from libcity.utils import get_evaluator, ensure_dir
 from libcity.model import loss
@@ -363,16 +365,17 @@ class TrafficStateExecutor(AbstractExecutor):
         self.model.train()
         loss_func = loss_func if loss_func is not None else self.model.calculate_loss
         losses = []
-        for batch in train_dataloader:
-            self.optimizer.zero_grad()
-            batch.to_tensor(self.device)
-            loss = loss_func(batch)
-            self._logger.debug(loss.item())
-            losses.append(loss.item())
-            loss.backward()
-            if self.clip_grad_norm:
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
-            self.optimizer.step()
+        with tqdm(total=len(train_dataloader), desc=f'Epoch {epoch_idx}/{self.epochs}', unit='batch') as pbar:
+            for batch in train_dataloader:
+                self.optimizer.zero_grad()
+                batch.to_tensor(self.device)
+                loss = loss_func(batch)
+                self._logger.debug(loss.item())
+                losses.append(loss.item())
+                loss.backward()
+                if self.clip_grad_norm:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
+                self.optimizer.step()
         return losses
 
     def _valid_epoch(self, eval_dataloader, epoch_idx, loss_func=None):

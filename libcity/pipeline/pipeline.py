@@ -61,6 +61,7 @@ def run_model(task=None, model_name=None, dataset_name=None, config_file=None,
     # 加载执行器
     model_cache_file = './libcity/cache/{}/model_cache/{}_{}.m'.format(
         exp_id, model_name, dataset_name)
+    model_cache_file = './libcity/cache/59307/model_cache/TTSOD_NYC_TOD_epoch96.tar'
     model = get_model(config, data_feature)
     executor = get_executor(config, model, data_feature)
     # 训练
