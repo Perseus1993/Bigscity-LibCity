@@ -9,6 +9,7 @@ class RoadNetWorkDataset(TrafficStateDataset):
         self.data_path = './raw_data/' + self.dataset + '/'
         self.geo_file = self.config.get('geo_file', self.dataset)
         self.rel_file = self.config.get('rel_file', self.dataset)
+        print(self.config.get('geo_file', self.dataset))
         assert os.path.exists(self.data_path + self.geo_file + '.geo')
         assert os.path.exists(self.data_path + self.rel_file + '.rel')
         super().__init__(config)

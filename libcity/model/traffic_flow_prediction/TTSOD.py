@@ -17,6 +17,7 @@ class LearnedPositionalEncoding(nn.Embedding):
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x):
+        # [5625, 1, 64]
         weight = self.weight.data.unsqueeze(1)
         x = x + weight[:x.size(0), :]
         return self.dropout(x)
@@ -24,20 +25,27 @@ class LearnedPositionalEncoding(nn.Embedding):
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, dropout=0.1, max_len=500):
+        max_len = 5625
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
-        pe = torch.zeros(max_len, d_model)
+        # pe = torch.zeros(max_len, d_model)
+        pe = torch.zeros(max_len, 1, d_model)
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0).transpose(0, 1)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)  # 修改此处
+        pe[:, 0, 1::2] = torch.cos(position * div_term)  # 修改此处
+
+        # pe[:, 0::2] = torch.sin(position * div_term)
+        # pe[:, 1::2] = torch.cos(position * div_term)
+        # pe = pe.unsqueeze(0).transpose(0, 1)
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        x = x + self.pe[:x.size(0), :]
-        # x = x + self.pe[:x.size(3), :]
+        # print("x shape", x.shape)
+        # print("pe shape", self.pe.shape)
+        # x = x + self.pe[:x.size(0), :]
+        x = x + self.pe[:x.size(0), :, :]
         return self.dropout(x)
 
 
@@ -71,7 +79,8 @@ class TrafficTransformer(nn.Module):
 
     def forward(self, input, mask):
         x = input.permute(1, 0, 2)
-        # x = self.pos(x)
+        # print("before pos",x.shape)
+        x = self.pos(x)
         # x = self.lpos(x)
         x = self.trans(x, x, tgt_mask=mask)
         return x.permute(1, 0, 2)
@@ -81,6 +90,7 @@ class TrafficTransformer(nn.Module):
         mask = torch.eye(l)
         mask = mask.bool()
         return mask
+
 
 class StandardScaler():
     """
@@ -173,14 +183,17 @@ class TTSOD(AbstractTrafficStateModel):
 
         x = x.transpose(1, 3)
         # print("x shape 1",x.shape) #x shape 1 torch.Size([16, 5, 15, 12, 15, 5, 1])
-        # [32, 5, 15, 12, 15, 5, 1]转换为[32, 1, 75, 75,12]
-        x = x.reshape(b_s, 1, 75*75, 12)
+        # [32, 5, 15, 12, 15, 5, 1]转换为[32, 1, 75*75,12]
+        x = x.reshape(b_s, 1, 75 * 75, 12)
         # print("x shape 2",x.shape)
         x = self.start_conv(x)
+        # print("after start_conv", x.shape)
         x = self.start_embedding(x)[..., -1]
+        # print("after start_embedding", x.shape)
         x = x.transpose(1, 2)
         # x = self.network(x, self.mask)
-        x = self.network(x,torch.ones((5625, 5625)).to(x.device))
+        # x = self.network(x, torch.ones((5625, 5625)).to(x.device))
+        x = self.network(x, torch.ones((769, 769)).to(x.device))
 
         x = self.end_conv(x)
         # print("x shape 3",x.shape)
@@ -190,7 +203,7 @@ class TTSOD(AbstractTrafficStateModel):
         y_predicted = self.forward(batch)
         # scaler = StandardScaler(mean=batch['X'][..., 0].mean(), std=batch['X'][..., 0].std())
         # y_predicted = scaler.inverse_transform(y_predicted)
-        y_predicted = y_predicted.reshape(y_predicted.shape[0],  12,15, 5, 15, 5, 1)
+        y_predicted = y_predicted.reshape(y_predicted.shape[0], 12, 15, 5, 15, 5, 1)
         return y_predicted
 
     def calculate_loss(self, batch):
@@ -198,8 +211,8 @@ class TTSOD(AbstractTrafficStateModel):
         # y_true = y_true.reshape(y_true.shape[0],  12, 5625, 1)
         # print("y_true shape",y_true.shape)
         y_predicted = self.predict(batch)
-        # print("y_predicted shape",y_predicted.shape)
 
+        # print("y_predicted shape",y_predicted.shape)
 
         def masked_mae(preds, labels, null_val=np.nan):
             if np.isnan(null_val):
@@ -216,38 +229,3 @@ class TTSOD(AbstractTrafficStateModel):
 
         # return loss.masked_mse_torch(y_predicted, y_true, 0)
         return masked_mae(y_predicted, y_true, 0)
-
-
-if __name__ == '__main__':
-    import torch
-    import numpy as np
-
-    y_true = torch.tensor(
-        [[65.4720, 57.9262, 61.8457, 60.4139, 66.8087, 60.2386, 59.7623, 65.0259,
-        58.3949, 60.3237, 65.1654, 64.7976]], device='cuda:0')
-    y_predicted = torch.tensor(
-        [[66.5556, 66.0000, 65.8750, 64.8750, 66.7500, 65.5000, 68.0000, 66.8889,
-        67.2500, 68.5000, 68.2222, 68.1111]], device='cuda:0')
-
-
-    # Define the masked_mse_torch function
-    def masked_mse_torch(preds, labels, null_val=np.nan):
-        labels[torch.abs(labels) < 1e-4] = 0
-        if np.isnan(null_val):
-            mask = ~torch.isnan(labels)
-        else:
-            mask = labels.ne(null_val)
-        mask = mask.float()
-        mask /= torch.mean(mask)
-        mask = torch.where(torch.isnan(mask), torch.zeros_like(mask), mask)
-        loss = torch.square(torch.sub(preds, labels))
-        loss = loss * mask
-        loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
-        return torch.mean(loss)
-
-
-    null_val = 0
-    # Calculate the loss
-    loss = masked_mse_torch(y_predicted, y_true, null_val=null_val)
-    print("Loss:", loss.item())
-

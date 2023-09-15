@@ -3,7 +3,12 @@
   "batch_size": 32,
   "output_dim": 12,
   "hid_dim": 64,
-  "layers": 1,
-  "learning_rate": 0.0001,
-  "max_epoch": 100
+  "layers": 2,
+  "learning_rate": 0.001,
+  "dropout": 0.1,
+  "max_epoch": 10,
+  "learner": "adam",
+  "lr_decay": true,
+  "lr_scheduler": "multisteplr",
+  "lr_decay_ratio": 0.5
 }

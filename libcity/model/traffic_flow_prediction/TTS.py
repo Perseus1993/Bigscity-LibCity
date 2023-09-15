@@ -12,7 +12,7 @@ from libcity.model import loss
 
 
 class LearnedPositionalEncoding(nn.Embedding):
-    def __init__(self, d_model, dropout=0.1, max_len=500):
+    def __init__(self, d_model, dropout=0.1, max_len=800):
         super().__init__(max_len, d_model)
         self.dropout = nn.Dropout(p=dropout)
 
@@ -23,7 +23,7 @@ class LearnedPositionalEncoding(nn.Embedding):
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, dropout=0.1, max_len=500):
+    def __init__(self, d_model, dropout=0.1, max_len=1355):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
@@ -71,7 +71,7 @@ class TrafficTransformer(nn.Module):
     def forward(self, input, mask):
         x = input.permute(1, 0, 2)
         x = self.pos(x)
-        x = self.lpos(x)
+        # x = self.lpos(x)
         x = self.trans(x, x, tgt_mask=mask)
         return x.permute(1, 0, 2)
 
@@ -80,6 +80,7 @@ class TrafficTransformer(nn.Module):
         mask = torch.eye(l)
         mask = mask.bool()
         return mask
+
 
 class StandardScaler():
     """
@@ -110,11 +111,11 @@ class TTS(AbstractTrafficStateModel):
         self.height = data_feature.get('len_row', 15)
         self.width = data_feature.get('len_column', 5)
 
-        self.in_dim = config.get('in_dim', 1)
+        self.in_dim = config.get('in_dim', 3)
         self.hid_dim = config.get('hid_dim', 64)
         self.layers = config.get('layers', 1)
         self.dropout = config.get('dropout', 0.1)
-        self.out_dim = config.get('output_dim', 1)
+        self.out_dim = config.get('output_dim', 3)
         self.supports = self._build_supports()
         self.mask = self._build_masks()
 
@@ -123,8 +124,11 @@ class TTS(AbstractTrafficStateModel):
                                     kernel_size=(1, 1))
 
         self.start_embedding = TemproalEmbedding(self.hid_dim, layers=3, dropout=self.dropout)
-        self.end_conv = nn.Linear(self.hid_dim, self.out_dim)
+        self.end_conv = nn.Linear(self.hid_dim, self.out_dim * 3)
         self.network = TrafficTransformer(in_dim=self.hid_dim, layers=self.layers, dropout=self.dropout)
+        with open(r'libcity/data/adj_mx_1355.pkl', 'rb') as f:
+            self.adj_test = pickle.load(f)
+
 
     def _build_supports(self):
         sensor_ids, sensor_id_to_ind, adj_mx = self._load_adj('libcity/data/sensor_graph/adj_mx.pkl')
@@ -168,14 +172,29 @@ class TTS(AbstractTrafficStateModel):
         x = batch['X']
         # print("====",x.shape) [16, 12, 207, 1]
         # #打印x的第一个batch的207个传感器画出来
-        # print("x shape",x.shape)
+        # print("1---x shape",x.shape)
         x = x.transpose(1, 3)
         x = self.start_conv(x)
         x = self.start_embedding(x)[..., -1]
         x = x.transpose(1, 2)
-        x = self.network(x, self.mask)
+        # x = self.network(x, self.mask)
+        # 读取E:\develop\gnn_cargo\embedding\adj_mx_test.pkl
+
+        mask_test = torch.ones((1355, 1355)).to(x.device)
+        # mask_test 在 adj_test   =  1的地方为0
+        # mask_test[self.adj_test == 1] = 0
+
+        x = self.network(x, mask_test)
+        # x = self.network(x, torch.ones((769, 769)).to(x.device))
+        # print("2---x shape", x.shape)
+
         x = self.end_conv(x)
-        return x.transpose(1, 2).unsqueeze(-1)
+        # print("3---x shape", x.shape)
+        # [32, 1355, 36]转成[32, 12, 1355, 3]
+        x = x.reshape(x.shape[0], self.output_window, x.shape[1], -1)
+        # print("4---x shape", x.shape)
+
+        return x
 
     def predict(self, batch):
         y_predicted = self.forward(batch)
@@ -187,20 +206,17 @@ class TTS(AbstractTrafficStateModel):
         y_true = batch['y']
         # y_true = y_true.transpose(1, 3)
         y_predicted = self.predict(batch)
+
         # print("===================================")
 
-        # print("y_true", y_true[0, :4, 0])
-        # print("y_predicted", y_predicted[0, :, 0])
+        print("y_true", y_true[0, :12, 450])
+        print("y_predicted", y_predicted[0, :12, 450])
         # print("===================================")
-
 
         # y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
 
-
-
         # y_true = torch.unsqueeze(y_true, dim=1)
         # print("y_predicted_before", y_predicted[0, :, 0])
-
 
         # print("scaler", self._scaler)
         #
@@ -223,8 +239,8 @@ class TTS(AbstractTrafficStateModel):
             loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
             return torch.mean(loss)
 
-        # return loss.masked_mse_torch(y_predicted, y_true, 0)
-        return masked_mae(y_predicted, y_true, 0)
+        return loss.masked_mse_torch(y_predicted, y_true, 0)
+        # return masked_mae(y_predicted, y_true, 0)
 
 
 if __name__ == '__main__':
@@ -233,10 +249,10 @@ if __name__ == '__main__':
 
     y_true = torch.tensor(
         [[65.4720, 57.9262, 61.8457, 60.4139, 66.8087, 60.2386, 59.7623, 65.0259,
-        58.3949, 60.3237, 65.1654, 64.7976]], device='cuda:0')
+          58.3949, 60.3237, 65.1654, 64.7976]], device='cuda:0')
     y_predicted = torch.tensor(
         [[66.5556, 66.0000, 65.8750, 64.8750, 66.7500, 65.5000, 68.0000, 66.8889,
-        67.2500, 68.5000, 68.2222, 68.1111]], device='cuda:0')
+          67.2500, 68.5000, 68.2222, 68.1111]], device='cuda:0')
 
 
     # Define the masked_mse_torch function

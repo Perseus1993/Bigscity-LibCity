@@ -240,6 +240,7 @@ class TrafficStateExecutor(AbstractExecutor):
             else:
                 lf = loss.masked_mae_torch
             return lf(y_predicted, y_true)
+
         return func
 
     def evaluate(self, test_dataloader):
@@ -258,11 +259,22 @@ class TrafficStateExecutor(AbstractExecutor):
             for batch in test_dataloader:
                 batch.to_tensor(self.device)
                 output = self.model.predict(batch)
+                # print(output.shape)
                 y_true = self._scaler.inverse_transform(batch['y'][..., :self.output_dim])
                 y_pred = self._scaler.inverse_transform(output[..., :self.output_dim])
+                # print(y_true.shape, y_pred.shape)
                 y_truths.append(y_true.cpu().numpy())
                 y_preds.append(y_pred.cpu().numpy())
                 # evaluate_input = {'y_true': y_true, 'y_pred': y_pred}
+                # print(y_true[0].squeeze(), y_pred[0].squeeze())
+                #写csv
+                # with open(r'C:\Users\gen_l\Desktop\test.csv', 'a') as f:
+                #     for i in range(12):
+                #         f.write(str(y_true[0].squeeze()[i]) + ',' + str(y_pred[0].squeeze()[i]) + '\n')
+                #     f.write('\n')
+                #
+                # break
+                #可视化训练结果
                 # self.evaluator.collect(evaluate_input)
             # self.evaluator.save_result(self.evaluate_res_dir)
             y_preds = np.concatenate(y_preds, axis=0)
@@ -316,7 +328,7 @@ class TrafficStateExecutor(AbstractExecutor):
 
             if (epoch_idx % self.log_every) == 0:
                 log_lr = self.optimizer.param_groups[0]['lr']
-                message = 'Epoch [{}/{}] train_loss: {:.4f}, val_loss: {:.4f}, lr: {:.6f}, {:.2f}s'.\
+                message = 'Epoch [{}/{}] train_loss: {:.4f}, val_loss: {:.4f}, lr: {:.6f}, {:.2f}s'. \
                     format(epoch_idx, self.epochs, np.mean(losses), val_loss, log_lr, (end_time - start_time))
                 self._logger.info(message)
 
@@ -376,6 +388,8 @@ class TrafficStateExecutor(AbstractExecutor):
                 if self.clip_grad_norm:
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
                 self.optimizer.step()
+                pbar.update(1)
+
         return losses
 
     def _valid_epoch(self, eval_dataloader, epoch_idx, loss_func=None):

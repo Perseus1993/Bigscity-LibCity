@@ -46,22 +46,22 @@ def run_model(task=None, model_name=None, dataset_name=None, config_file=None,
     dataset = get_dataset(config)
     # 转换数据，并划分数据集
     train_data, valid_data, test_data = dataset.get_data()
-    # for data in train_data:
-    #     print('y_shape',data['y'][0].shape)
-    #     # (12, 15, 5, 15, 5, 1)
-    #     # for frame in data['y'][0]:
-    #     #     #frame第一维和第二维分别是O的横坐标和O的纵坐标，第三维是D的横坐标，第四维是D的纵坐标，第五维是OD的流量
-    #     #     reshaped_frame = frame.reshape(75, 75)
-    #     #     print(reshaped_frame)
-    #     #     break
-    #
-    #     print("=====================================")
-    #     break
+    for data in train_data:
+        print('y_shape',data['y'][0].shape)
+        # (12, 15, 5, 15, 5, 1)
+        # for frame in data['y'][0]:
+        #     #frame第一维和第二维分别是O的横坐标和O的纵坐标，第三维是D的横坐标，第四维是D的纵坐标，第五维是OD的流量
+        #     reshaped_frame = frame.reshape(75, 75)
+        #     print(reshaped_frame)
+        #     break
+
+        print("=====================================")
+        break
     data_feature = dataset.get_data_feature()
     # 加载执行器
     model_cache_file = './libcity/cache/{}/model_cache/{}_{}.m'.format(
         exp_id, model_name, dataset_name)
-    model_cache_file = './libcity/cache/59307/model_cache/TTSOD_NYC_TOD_epoch96.tar'
+    # model_cache_file = "/E:/red/model/TTSOD_NYC_TOD_epoch14.tar"
     model = get_model(config, data_feature)
     executor = get_executor(config, model, data_feature)
     # 训练

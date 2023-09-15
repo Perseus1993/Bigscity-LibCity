@@ -84,6 +84,8 @@ class RNN(AbstractTrafficStateModel):
     def calculate_loss(self, batch):
         y_true = batch['y']
         y_predicted = self.predict(batch)
+        print("y_true", y_true[0, :12, 450])
+        print("y_predicted", y_predicted[0, :12, 450])
         y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
         y_predicted = self._scaler.inverse_transform(y_predicted[..., :self.output_dim])
         return loss.masked_mae_torch(y_predicted, y_true, 0)
