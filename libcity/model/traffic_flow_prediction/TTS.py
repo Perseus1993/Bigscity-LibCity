@@ -10,6 +10,7 @@ import scipy.sparse as sp
 from libcity.model.abstract_traffic_state_model import AbstractTrafficStateModel
 from libcity.model import loss
 
+import pandas as pd
 
 class LearnedPositionalEncoding(nn.Embedding):
     def __init__(self, d_model, dropout=0.1, max_len=800):
@@ -129,6 +130,25 @@ class TTS(AbstractTrafficStateModel):
         with open(r'libcity/data/adj_mx_1355.pkl', 'rb') as f:
             self.adj_test = pickle.load(f)
 
+        with open(r'libcity/exp/tot_embedding_dict.pkl', 'rb') as f:
+            self.tot_embedding_dict = pickle.load(f)
+        print("read embedding_dict success")
+
+
+        # 读取文件
+        df = pd.read_csv('raw_data/CT/CT.dyna')
+
+        # 获取唯一的 'geo_id'
+        unique_geo_ids = df['entity_id'].unique()
+        unique_list = unique_geo_ids.tolist()
+        print("unique_list", len(unique_list))
+        print("unique_list", unique_list)
+        embeddings_list = [self.tot_embedding_dict[geo_id] for geo_id in unique_list]
+        self.embeddings_tensor = torch.stack(embeddings_list)
+
+
+
+
 
     def _build_supports(self):
         sensor_ids, sensor_id_to_ind, adj_mx = self._load_adj('libcity/data/sensor_graph/adj_mx.pkl')
@@ -170,7 +190,7 @@ class TTS(AbstractTrafficStateModel):
 
     def forward(self, batch):
         x = batch['X']
-        # print("====",x.shape) [16, 12, 207, 1]
+        print("====",x.shape)
         # #打印x的第一个batch的207个传感器画出来
         # print("1---x shape",x.shape)
         x = x.transpose(1, 3)
@@ -209,8 +229,8 @@ class TTS(AbstractTrafficStateModel):
 
         # print("===================================")
 
-        print("y_true", y_true[0, :12, 450])
-        print("y_predicted", y_predicted[0, :12, 450])
+        # print("y_true", y_true[0, :12, 450])
+        # print("y_predicted", y_predicted[0, :12, 450])
         # print("===================================")
 
         # y_true = self._scaler.inverse_transform(y_true[..., :self.output_dim])
@@ -242,36 +262,3 @@ class TTS(AbstractTrafficStateModel):
         return loss.masked_mse_torch(y_predicted, y_true, 0)
         # return masked_mae(y_predicted, y_true, 0)
 
-
-if __name__ == '__main__':
-    import torch
-    import numpy as np
-
-    y_true = torch.tensor(
-        [[65.4720, 57.9262, 61.8457, 60.4139, 66.8087, 60.2386, 59.7623, 65.0259,
-          58.3949, 60.3237, 65.1654, 64.7976]], device='cuda:0')
-    y_predicted = torch.tensor(
-        [[66.5556, 66.0000, 65.8750, 64.8750, 66.7500, 65.5000, 68.0000, 66.8889,
-          67.2500, 68.5000, 68.2222, 68.1111]], device='cuda:0')
-
-
-    # Define the masked_mse_torch function
-    def masked_mse_torch(preds, labels, null_val=np.nan):
-        labels[torch.abs(labels) < 1e-4] = 0
-        if np.isnan(null_val):
-            mask = ~torch.isnan(labels)
-        else:
-            mask = labels.ne(null_val)
-        mask = mask.float()
-        mask /= torch.mean(mask)
-        mask = torch.where(torch.isnan(mask), torch.zeros_like(mask), mask)
-        loss = torch.square(torch.sub(preds, labels))
-        loss = loss * mask
-        loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
-        return torch.mean(loss)
-
-
-    null_val = 0
-    # Calculate the loss
-    loss = masked_mse_torch(y_predicted, y_true, null_val=null_val)
-    print("Loss:", loss.item())
